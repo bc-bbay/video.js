@@ -441,7 +441,7 @@ test('should not add multiple first play events despite subsequent loads', funct
     ok(true, 'First play should fire once.');
   });
 
-  // Checking to make sure onLoadStart removes first play listener before adding a new one.
+  // Checking to make sure handleLoadStart removes first play listener before adding a new one.
   player.trigger('loadstart');
   player.trigger('loadstart');
   player.trigger('play');
@@ -716,4 +716,15 @@ test('should be scrubbing while seeking', function(){
   player.scrubbing(true);
   equal(player.scrubbing(), true, 'player is scrubbing');
   ok(player.el().className.indexOf('scrubbing') !== -1, 'scrubbing class is present');
+});
+
+test('should throw on startup no techs are specified', function() {
+  const techOrder = Options.techOrder;
+
+  Options.techOrder = null;
+  q.throws(function() {
+    videojs(TestHelpers.makeTag());
+  }, 'a falsey techOrder should throw');
+
+  Options.techOrder = techOrder;
 });
