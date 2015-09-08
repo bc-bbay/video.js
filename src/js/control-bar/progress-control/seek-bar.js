@@ -21,6 +21,9 @@ class SeekBar extends Slider {
   constructor(player, options){
     super(player, options);
     this.on(player, 'timeupdate', this.updateARIAAttributes);
+    if (player.hls && player.hls.playlists) {
+      this.on(player.hls.playlists, 'loadedplaylist', this.updateARIAAttributes);
+    }
     player.ready(Fn.bind(this, this.updateARIAAttributes));
   }
 
@@ -43,10 +46,18 @@ class SeekBar extends Slider {
    * @method updateARIAAttributes
    */
   updateARIAAttributes() {
-      // Allows for smooth scrubbing, when player can't keep up.
-      let time = (this.player_.scrubbing()) ? this.player_.getCache().currentTime : this.player_.currentTime();
+    // Allows for smooth scrubbing, when player can't keep up.
+    let time = (this.player_.scrubbing()) ? this.player_.getCache().currentTime : this.player_.currentTime();
+    if (this.player_.duration() === Infinity) {
+      let seekable = this.player_.seekable();
+      let formattedTime = seekable.end(0) - time;
+      formattedTime = formattedTime < 0 ? 0 : formattedTime;
+      this.el_.setAttribute('aria-valuenow', vjs.round(this.getLivePercent() * 100, 2));
+      this.el_.setAttribute('aria-valuetext', (time === 0 ? '' : '-') + formatTime(formattedTime, seekable.end(0)));
+    } else {
       this.el_.setAttribute('aria-valuenow', (this.getPercent() * 100).toFixed(2)); // machine readable value of progress bar (percentage complete)
       this.el_.setAttribute('aria-valuetext', formatTime(time, this.player_.duration())); // human readable value of progress bar (time complete)
+    }
   }
 
   /**
@@ -58,6 +69,21 @@ class SeekBar extends Slider {
   getPercent() {
     let percent = this.player_.currentTime() / this.player_.duration();
     return percent >= 1 ? 1 : percent;
+  }
+
+  /**
+   * Get percentage of live video played
+   *
+   * @return {Number} Percentage played
+   * @method getPercent
+   */
+  getLivePercent() {
+    let seekable = this.player_.seekable();
+    if (!seekable || !seekable.length || vjs.dvrux.playerIsLive(this.player_)) {
+      return 1;
+    } else {
+      return (this.player_.currentTime() - seekable.start(0)) / (seekable.end(0) - seekable.start(0));
+    }
   }
 
   /**
@@ -80,7 +106,17 @@ class SeekBar extends Slider {
    * @method handleMouseMove
    */
   handleMouseMove(event) {
-    let newTime = this.calculateDistance(event) * this.player_.duration();
+    let newTime = 0;
+
+    if (this.player_.duration === Infinity) {
+      let seekable = this.player_.seekable();
+      if (!seekable || !seekable.length) {
+        return -1;
+      }
+      newTime = seekable.start(0) + (this.calculateDistance(event) * (seekable.end(0) - seekable.start(0)));
+    } else {
+      newTime = this.calculateDistance(event) * this.player_.duration();
+    }
 
     // Don't let video end while scrubbing.
     if (newTime === this.player_.duration()) { newTime = newTime - 0.1; }
